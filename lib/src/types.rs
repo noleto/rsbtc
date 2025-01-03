@@ -3,15 +3,19 @@ use crate::error::{BtcError, Result};
 use crate::sha256::Hash;
 use crate::util::MerkleRoot;
 use crate::U256;
+use bigdecimal::BigDecimal;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use uuid::Uuid;
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Blockchain {
-    pub blocks: Vec<Block>,
     pub utxos: HashMap<Hash, TransactionOutput>,
+    pub target: U256,
+    pub blocks: Vec<Block>,
+    #[serde(default, skip_serializing)]
+    mempool: Vec<(DateTime<Utc>, Transaction)>,
 }
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Block {
@@ -63,6 +67,8 @@ impl Blockchain {
         Blockchain {
             utxos: HashMap::new(),
             blocks: vec![],
+            target: crate::MIN_TARGET,
+            mempool: vec![],
         }
     }
 
@@ -75,7 +81,7 @@ impl Blockchain {
     pub fn rebuild_utxos(&mut self) {
         for block in &self.blocks {
             for tx in &block.transactions {
-                for input in &tx.inputs {
+                for input in tx.inputs.iter() {
                     self.utxos.remove(&input.prev_transaction_output_hash);
                 }
                 for output in tx.outputs.iter() {
@@ -127,8 +133,78 @@ impl Blockchain {
             //Verify all transactions in the block
             block.verify_transactions(self.block_height(), &self.utxos)?;
         }
+
+        // Remove transactions from mempool that are now in the block
+        let block_txs: HashSet<_> = block.transactions.iter().map(|tx| tx.hash()).collect();
+        self.mempool
+            .retain(|(_, tx)| block_txs.contains(&tx.hash()));
+
         self.blocks.push(block);
+        self.try_adjust_target();
         Ok(())
+    }
+
+    // try to adjust the target of the blockchain
+    pub fn try_adjust_target(&mut self) {
+        if self.blocks.len() < crate::DIFFICULTY_UPDATE_INTERVAL as usize {
+            return;
+        }
+
+        if self.blocks.len() % crate::DIFFICULTY_UPDATE_INTERVAL as usize != 0 {
+            println!("won't update on this block");
+            return;
+        }
+
+        println!("actually updating");
+        // measure the time it took to mine the last
+        // crate::DIFFICULTY_UPDATE_INTERVAL blocks
+        // with chrono
+        let start_time = self.blocks
+            [self.blocks.len() - crate::DIFFICULTY_UPDATE_INTERVAL as usize]
+            .header
+            .timestamp;
+        let end_time = self.blocks.last().unwrap().header.timestamp;
+        let time_diff = end_time - start_time;
+
+        // convert time_diff to seconds
+        let time_diff_seconds = time_diff.num_seconds();
+        // calculate the ideal number of seconds
+        let target_seconds = crate::IDEAL_BLOCK_TIME * crate::DIFFICULTY_UPDATE_INTERVAL;
+
+        // multiply the current target by actual time divided by ideal time
+        let new_target = BigDecimal::parse_bytes(&self.target.to_string().as_bytes(), 10)
+            .expect("BUG: impossible")
+            * (BigDecimal::from(time_diff_seconds) / BigDecimal::from(target_seconds));
+
+        // cut off decimal point and everything after
+        // it from string representation of new_target
+        let new_target_str = new_target
+            .to_string()
+            .split('.')
+            .next()
+            .expect("BUG: Expected a decimal point")
+            .to_owned();
+
+        let new_target: U256 = U256::from_str_radix(&new_target_str, 10).expect("BUG: impossible");
+
+        dbg!(new_target);
+
+        // clamp new_target to be within the range of
+        // 4 * self.target and self.target / 4
+        let new_target = if new_target < self.target / 4 {
+            dbg!(self.target / 4)
+        } else if new_target > self.target * 4 {
+            dbg!(self.target * 4)
+        } else {
+            new_target
+        };
+
+        dbg!(new_target);
+
+        // if the new target is more than the minimum target,
+        // set it to the minimum target
+        self.target = new_target.min(crate::MIN_TARGET);
+        dbg!(self.target);
     }
 }
 
@@ -233,7 +309,7 @@ impl Block {
 
         // Check every transaction after coinbase
         for tx in self.transactions.iter().skip(1) {
-            for input in &tx.inputs {
+            for input in tx.inputs.iter() {
                 // inputs do not contain the values of the outputs
                 // so we need to match inputs to outputs
                 let prev_output = utxos.get(&input.prev_transaction_output_hash);
@@ -248,7 +324,7 @@ impl Block {
 
                 inputs.insert(input.prev_transaction_output_hash, prev_output.clone());
             }
-            for output in &tx.outputs {
+            for output in tx.outputs.iter() {
                 if outputs.contains_key(&output.hash()) {
                     return Err(BtcError::InvalidTransaction);
                 }

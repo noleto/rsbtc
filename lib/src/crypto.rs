@@ -51,7 +51,7 @@ impl PrivateKey {
 
 impl Signature {
     // sign a crate::types::TransactionOutput from its Sha256 hash
-    pub fn sign_output(output_hash: &Hash, private_key: &PrivateKey) -> Self {
+    pub fn sign_output(output_hash: &Hash, private_key: &PrivateKey) -> Signature {
         let signing_key = &private_key.0;
         let signature = signing_key.sign(&output_hash.as_bytes());
         Signature(signature)
