@@ -3,10 +3,12 @@ use serde::{Deserialize, Serialize};
 use sha256::digest;
 use std::fmt;
 
-#[derive(Clone, Copy, Serialize, Deserialize, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Serialize, Deserialize, Debug, PartialEq, Eq, Hash)]
 pub struct Hash(U256);
 
 impl Hash {
+    pub const ZERO: Hash = Hash(U256::zero());
+
     pub fn hash<T: Serialize>(data: &T) -> Self {
         let mut serialized = vec![];
         if let Err(e) = ciborium::into_writer(data, &mut serialized) {
@@ -19,6 +21,11 @@ impl Hash {
     // check if a hash matches a target
     pub fn matches_target(&self, target: U256) -> bool {
         self.0 <= target
+    }
+
+    ///Convert to bytes
+    pub fn as_bytes(self) -> [u8; 32] {
+        self.0.to_little_endian()
     }
 }
 

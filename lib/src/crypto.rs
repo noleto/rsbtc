@@ -1,4 +1,8 @@
-use ecdsa::{Signature as ECDSASignature, SigningKey, VerifyingKey};
+use crate::sha256::Hash;
+use ecdsa::{
+    Signature as ECDSASignature, SigningKey, VerifyingKey,
+    signature::{Signer, Verifier},
+};
 use k256::Secp256k1;
 use serde::{Deserialize, Serialize};
 
@@ -34,5 +38,22 @@ mod signkey_serde {
         Ok(SigningKey::from_slice(&bytes).or(Err(Error::custom(
             "unable to deserialize SigningKey from bytes representation",
         )))?)
+    }
+}
+
+impl Signature {
+    ///sign a crate::types::TransactionOutput from its Sha256 hash
+    pub fn sign_output(output_hash: &Hash, private_key: &PrivateKey) -> Self {
+        let signing_key = &private_key.0;
+        let signature = signing_key.sign(&output_hash.as_bytes());
+        Signature(signature)
+    }
+
+    ///verify a signature
+    pub fn verify(&self, output_hash: &Hash, public_key: &PublicKey) -> bool {
+        public_key
+            .0
+            .verify(&output_hash.as_bytes(), &self.0)
+            .is_ok()
     }
 }
