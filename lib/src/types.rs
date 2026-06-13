@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use crate::U256;
 use crate::crypto::{PublicKey, Signature};
@@ -139,10 +139,86 @@ impl Block {
     // Verify all transactions in the block
     pub fn verify_transactions(
         &self,
-        _predicted_block_height: u64,
-        _utxos: &HashMap<Hash, TransactionOutput>,
+        predicted_block_height: u64,
+        utxos: &HashMap<Hash, TransactionOutput>,
     ) -> Result<()> {
-        todo!()
+        // reject completely empty blocks
+        if self.transactions.is_empty() {
+            return Err(BtcError::InvalidTransaction);
+        }
+
+        // verify coinbase transaction
+        self.verify_coinbase_transaction(predicted_block_height, utxos)?;
+
+        let mut spent = HashSet::new();
+        for tx in self.transactions.iter().skip(1) {
+            let resolved = tx.resolve_inputs(utxos, &mut spent)?;
+            for (input, previous_output) in resolved.iter() {
+                if !input
+                    .signature
+                    .verify(&input.prev_transaction_output_hash, &previous_output.pubkey)
+                {
+                    return Err(BtcError::InvalidSignature);
+                }
+            }
+            let input_value: u64 = resolved.iter().map(|(_, i)| i.value).sum();
+            let output_value: u64 = tx.outputs.iter().map(|o| o.value).sum();
+
+            // It is fine for output value to be less than input value
+            // as the difference is the fee for the miner
+            if input_value < output_value {
+                return Err(BtcError::InvalidTransaction);
+            }
+        }
+
+        Ok(())
+    }
+
+    pub fn verify_coinbase_transaction(
+        &self,
+        predicted_block_height: u64,
+        utxos: &HashMap<Hash, TransactionOutput>,
+    ) -> Result<()> {
+        // coinbase tx is the first transaction in the block
+        let coinbase_tx = &self
+            .transactions
+            .get(0)
+            .ok_or(BtcError::InvalidTransaction)?;
+
+        // coinbase tx is created Ex nihilo so should have no inputs
+        if !coinbase_tx.inputs.is_empty() {
+            return Err(BtcError::InvalidTransaction);
+        }
+
+        // coinbase shoud send minted coins to someone
+        if coinbase_tx.outputs.is_empty() {
+            return Err(BtcError::InvalidTransaction);
+        }
+
+        let miner_fees = self.calculate_miner_fees(utxos)?;
+        let block_reward = crate::INITIAL_REWARD * 10u64.pow(8)
+            / 2u64.pow((predicted_block_height / crate::HALVING_INTERVAL) as u32);
+
+        let total_coinbase_value: u64 = coinbase_tx.outputs.iter().map(|o| o.value).sum();
+        if total_coinbase_value != block_reward + miner_fees {
+            return Err(BtcError::InvalidTransaction);
+        }
+        Ok(())
+    }
+
+    pub fn calculate_miner_fees(&self, utxos: &HashMap<Hash, TransactionOutput>) -> Result<u64> {
+        let mut spent = HashSet::new();
+        let (input_value, output_value) =
+            self.transactions
+                .iter()
+                .skip(1)
+                .try_fold((0u64, 0u64), |(ins, outs), tx| {
+                    let resolved = tx.resolve_inputs(utxos, &mut spent)?;
+                    let tx_in: u64 = resolved.iter().map(|(_, po)| po.value).sum();
+                    let tx_out: u64 = tx.outputs.iter().map(|o| o.value).sum();
+                    Ok((ins + tx_in, outs + tx_out))
+                })?;
+        Ok(input_value - output_value)
     }
 }
 
@@ -175,6 +251,27 @@ impl Transaction {
 
     pub fn hash(&self) -> Hash {
         Hash::hash(self)
+    }
+
+    /// For each input, check for double-spend and look up the previous output in UTXOs
+    fn resolve_inputs<'a>(
+        &self,
+        utxos: &'a HashMap<Hash, TransactionOutput>,
+        spent: &mut HashSet<Hash>,
+    ) -> Result<Vec<(&TransactionInput, &'a TransactionOutput)>> {
+        self.inputs
+            .iter()
+            .map(|input| {
+                if !spent.insert(input.prev_transaction_output_hash) {
+                    return Err(BtcError::InvalidTransaction);
+                }
+
+                let previous_output = utxos
+                    .get(&input.prev_transaction_output_hash)
+                    .ok_or(BtcError::InvalidTransaction)?;
+                Ok((input, previous_output))
+            })
+            .collect()
     }
 }
 

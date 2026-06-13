@@ -28,3 +28,16 @@ Hash(U256::from_str_radix(&hash, 16).expect("Cannot decode the sha256 digest!"))
 - Requires rand = {version = "0.8.5"} as new version "0.10.1" dropped support for `rand::thread_rng()` and ecdsa = { version = "0.16.9" } still requires it!
 ```
 - hash.rs => should bre read "sha256.rs"
+
+## Page 207
+- The function `rebuild_utxos` has a logic issue: The key used for insertion should be `output.hash()`, not `tx.hash()`. Since `TransactionOutput` has a `unique_id: Uuid` field, each output produces a distinct hash. The `prev_transaction_output_hash` on inputs is meant to reference a specific output's hash, not the parent transaction's hash.
+```
+for output in &tx.outputs {
+    self.utxos.insert(output.hash(), output.clone());
+//                    ^^^^^^^^^^^^^ was transaction.hash()
+}
+```
+
+## Page 209
+- Misleading phrase "If you run cargo check now, you should have not just no errors, but also no warnings": The function `verify_transactions` was never defined before that point (it comes just after that phrase)
+- Method `block_height` is used by only defined in page 226!
