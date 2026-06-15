@@ -12,7 +12,10 @@ use uuid::Uuid;
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Blockchain {
     pub blocks: Vec<Block>,
+    pub target: U256,
     pub utxos: HashMap<Hash, TransactionOutput>,
+    #[serde(default, skip_serializing)]
+    mempool: Vec<(DateTime<Utc>, Transaction)>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -58,6 +61,8 @@ impl Blockchain {
     pub fn new() -> Self {
         Blockchain {
             blocks: vec![],
+            target: crate::MIN_TARGET,
+            mempool: vec![],
             utxos: HashMap::new(),
         }
     }
@@ -100,8 +105,51 @@ impl Blockchain {
             // Verify all transactions in the block
             block.verify_transactions(self.block_height(), &self.utxos)?;
         }
+        // Remove transactions from mempool that are now in the block
+        // TODO revisit that code
+        let block_txs: HashSet<_> = block.transactions.iter().map(|tx| tx.hash()).collect();
+        self.mempool
+            .retain(|(_, tx)| block_txs.contains(&tx.hash()));
+
         self.blocks.push(block);
+
+        self.try_adjust_target();
         Ok(())
+    }
+
+    pub fn try_adjust_target(&mut self) {
+        if self.blocks.is_empty() {
+            return;
+        }
+
+        if self.blocks.len() % crate::DIFFICULTY_UPDATE_INTERVAL as usize != 0 {
+            return;
+        }
+
+        // measure the time it took to mine the last
+        // {crate::DIFFICULTY_UPDATE_INTERVAL} blocks with chrono
+        if let (Some(start_block), Some(end_block)) = (
+            self.blocks
+                .get(self.blocks.len() - crate::DIFFICULTY_UPDATE_INTERVAL as usize),
+            self.blocks.last(),
+        ) {
+            let start_time = start_block.header.timestamp;
+            let end_time = end_block.header.timestamp;
+            let time_diff = end_time - start_time;
+
+            let time_diff_secs = time_diff.num_seconds();
+            // calculate the ideal number of seconds
+            let target_secs = crate::IDEAL_BLOCK_TIME * crate::DIFFICULTY_UPDATE_INTERVAL;
+            let new_target = self.target * (time_diff_secs as f64 / target_secs as f64) as u64;
+
+            // clamp new_target to be within the range of
+            // 4 * self.target and self.target / 4
+            let new_target = new_target.clamp(self.target / 4, self.target * 4);
+
+            // if the new target is more than the minimum target,
+            // set it to the minimum target
+            self.target = new_target.min(crate::MIN_TARGET);
+        }
     }
 
     // Rebuild UTXO set from the blockchain

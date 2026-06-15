@@ -41,3 +41,6 @@ for output in &tx.outputs {
 ## Page 209
 - Misleading phrase "If you run cargo check now, you should have not just no errors, but also no warnings": The function `verify_transactions` was never defined before that point (it comes just after that phrase)
 - Method `block_height` is used by only defined in page 226!
+
+## Page 224
+- `mempool` field in the struct `Blockchain`:  `self.mempool.retain(|(_, tx)| block_txs.contains(&tx.hash()))` was introduced in `add_block` function but never declared before the page 241!
