@@ -4,7 +4,7 @@ use super::{Block, Transaction, TransactionOutput};
 use crate::U256;
 use crate::error::{BtcError, Result};
 use crate::sha256::{Hash, Txid, UtxoHash};
-use crate::util::MerkleRoot;
+use crate::utils::MerkleRoot;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
