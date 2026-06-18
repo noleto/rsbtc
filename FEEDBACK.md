@@ -42,5 +42,9 @@ for output in &tx.outputs {
 - Misleading phrase "If you run cargo check now, you should have not just no errors, but also no warnings": The function `verify_transactions` was never defined before that point (it comes just after that phrase)
 - Method `block_height` is used by only defined in page 226!
 
-## Page 224
-- `mempool` field in the struct `Blockchain`:  `self.mempool.retain(|(_, tx)| block_txs.contains(&tx.hash()))` was introduced in `add_block` function but never declared before the page 241!
+## Page 218
+- Missing `mempool` field in the struct `Blockchain`:  `self.mempool.retain(|(_, tx)| { !block_transactions.contains(&tx.hash()) });` was introduced in `add_block` function but never declared before the page 227, and in the meantime authors ask to run `cargo check` in page 224, sic "you should be getting no warnings and no compilation errors whatsoever".
+
+
+## Page 239
+- typo: "This method() includes the index of each element with it..." => "This method includes..."

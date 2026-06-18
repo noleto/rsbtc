@@ -24,4 +24,6 @@ pub enum BtcError {
     InvalidPublicKey,
     #[error("Invalid private key")]
     InvalidPrivateKey,
+    #[error("Transaction was dropped: {0}")]
+    TransactionDropped(String),
 }

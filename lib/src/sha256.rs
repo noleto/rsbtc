@@ -6,6 +6,15 @@ use std::fmt;
 #[derive(Clone, Copy, Serialize, Deserialize, Debug, PartialEq, Eq, Hash)]
 pub struct Hash(U256);
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct UtxoHash(pub Hash);
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct Txid(pub Hash);
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct BlockHash(pub Hash);
+
 impl Hash {
     pub const ZERO: Hash = Hash(U256::zero());
 

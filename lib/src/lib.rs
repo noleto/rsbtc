@@ -28,3 +28,5 @@ pub mod error;
 pub mod sha256;
 pub mod types;
 pub mod util;
+// maximum mempool transaction age in seconds
+pub const MAX_MEMPOOL_TRANSACTION_AGE: u64 = 600;
