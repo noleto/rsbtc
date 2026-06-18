@@ -26,7 +26,6 @@ Hash(U256::from_str_radix(&hash, 16).expect("Cannot decode the sha256 digest!"))
 
 ## Page 187
 - Requires rand = {version = "0.8.5"} as new version "0.10.1" dropped support for `rand::thread_rng()` and ecdsa = { version = "0.16.9" } still requires it!
-```
 - hash.rs => should bre read "sha256.rs"
 
 ## Page 207
