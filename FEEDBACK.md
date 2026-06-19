@@ -8,7 +8,7 @@ Rust doc: The difference between unimplemented and todo! is that while todo! con
 
 ## Page 177
 With the new version of crate uint (0.10.0), no more support from converting from an array (see https://github.com/paritytech/parity-common/pull/859):
-```
+```rust
 let hash = digest(&serialized);
 let hash_bytes = hex::decode(hash).unwrap();
 let hash_array: [u8; 32] = hash_bytes.as_slice()
@@ -18,7 +18,7 @@ Hash(U256::from(hash_array)) // removed from the api
 ```
 
 Replacement code (that uses internally the new `from_big_endian(&bytes)`)
-```
+```rust
 let hash = digest(&serialized);
 Hash(U256::from_str_radix(&hash, 16).expect("Cannot decode the sha256 digest!"))
 ```
@@ -49,20 +49,20 @@ for output in &tx.outputs {
 - typo: "This method() includes the index of each element with it..." => "This method includes..."
 
 
-## Page 
+## Page 277
 
-- Display bug on hash (strips leading zeros): On page 180, the Display trait for hash is implemented as:
-```
+- Display bug on hash if mined block (strips leading zeros): On page 180, the Display trait for hash was implemented as:
+```rust
 impl fmt::Display for Hash {
   fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
   write!(f, "{:x}", self.0)
   }
 }
 ```
-{:x}` formats a `U256` as hex but **strips leading zeros**. Since a mined hash satisfies `hash <= target`, it has small numeric value — which means leading zero bytes — and those zeros are exactly what proof-of-work produces. The formatter then drops them, so a valid mined hash *looks* like it starts with `25c3...` when it really starts with `0000...25c3`.
+{:x} formats a `U256` as hex but **strips leading zeros**. Since a mined hash satisfies `hash <= target`, it has small numeric value — which means leading zero bytes — and those zeros are exactly what proof-of-work produces. The formatter then drops them, so a valid mined hash *looks* like it starts with `25c3...` when it really starts with `0000...25c3`.
 
 The fix is:
-```
+```rust
 impl fmt::Display for Hash {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{:064x}", self.0)
