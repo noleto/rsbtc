@@ -47,3 +47,26 @@ for output in &tx.outputs {
 
 ## Page 239
 - typo: "This method() includes the index of each element with it..." => "This method includes..."
+
+
+## Page 
+
+- Display bug on hash (strips leading zeros): On page 180, the Display trait for hash is implemented as:
+```
+impl fmt::Display for Hash {
+  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+  write!(f, "{:x}", self.0)
+  }
+}
+```
+{:x}` formats a `U256` as hex but **strips leading zeros**. Since a mined hash satisfies `hash <= target`, it has small numeric value — which means leading zero bytes — and those zeros are exactly what proof-of-work produces. The formatter then drops them, so a valid mined hash *looks* like it starts with `25c3...` when it really starts with `0000...25c3`.
+
+The fix is:
+```
+impl fmt::Display for Hash {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:064x}", self.0)
+    }
+}
+```
+The `0` flag means pad with zeros, `64` is the width (32 bytes × 2 hex chars)

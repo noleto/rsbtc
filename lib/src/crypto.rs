@@ -1,3 +1,5 @@
+use std::fmt::{Debug, Display};
+
 use crate::sha256::Hash;
 use ecdsa::{
     Signature as ECDSASignature, SigningKey, VerifyingKey,
@@ -8,14 +10,19 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Signature(ECDSASignature<Secp256k1>);
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct PublicKey(VerifyingKey<Secp256k1>);
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct PrivateKey(#[serde(with = "signkey_serde")] pub SigningKey<Secp256k1>);
 
 impl PrivateKey {
     pub fn new_key() -> Self {
         PrivateKey(SigningKey::random(&mut rand::thread_rng()))
+    }
+
+    pub fn public_key(&self) -> PublicKey {
+        PublicKey(self.0.verifying_key().clone())
     }
 }
 
@@ -55,5 +62,21 @@ impl Signature {
             .0
             .verify(&output_hash.as_bytes(), &self.0)
             .is_ok()
+    }
+}
+
+impl Display for PublicKey {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "SEC1(0x{})",
+            hex::encode(self.0.to_encoded_point(true).as_bytes())
+        )
+    }
+}
+
+impl Debug for PublicKey {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Display::fmt(self, f)
     }
 }

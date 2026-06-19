@@ -1,7 +1,9 @@
+use std::fmt::{self, Debug, Display};
+
 use crate::{sha256::Hash, types::Transaction};
 use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq)]
 pub struct MerkleRoot(Hash);
 
 impl MerkleRoot {
@@ -17,5 +19,17 @@ impl MerkleRoot {
 
         assert_eq!(layer.len(), 1, "MerkelRoot should contain a single hash");
         MerkleRoot(layer[0])
+    }
+}
+
+impl Display for MerkleRoot {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        std::fmt::Display::fmt(&self.0, f)
+    }
+}
+
+impl Debug for MerkleRoot {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Display::fmt(&self.0, f)
     }
 }
