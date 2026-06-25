@@ -1,12 +1,16 @@
 use std::fmt::{Debug, Display};
 
-use crate::sha256::Hash;
+use crate::{
+    sha256::Hash,
+    utils::{AutoSaveable, Saveable},
+};
 use ecdsa::{
     Signature as ECDSASignature, SigningKey, VerifyingKey,
     signature::{Signer, Verifier},
 };
-use k256::Secp256k1;
+use k256::{Secp256k1, pkcs8::EncodePublicKey};
 use serde::{Deserialize, Serialize};
+use std::io::{Error as IoError, ErrorKind as IoErrorKind, Read, Result as IoResult, Write};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Signature(ECDSASignature<Secp256k1>);
@@ -78,5 +82,31 @@ impl Display for PublicKey {
 impl Debug for PublicKey {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         std::fmt::Display::fmt(self, f)
+    }
+}
+
+impl AutoSaveable for PrivateKey {}
+
+// save and load as PEM
+impl Saveable for PublicKey {
+    fn load<I: Read>(mut reader: I) -> IoResult<Self> {
+        // read PEM-encoded public key into string
+        let mut buf = String::new();
+        reader.read_to_string(&mut buf)?;
+
+        // decode the public key from PEM-encoded SPKI
+        let public_key = buf
+            .parse()
+            .map_err(|_| IoError::new(IoErrorKind::InvalidData, "Failed to parse PublicKey"))?;
+        Ok(PublicKey(public_key))
+    }
+
+    fn save<O: Write>(&self, mut writer: O) -> IoResult<()> {
+        let s = self
+            .0
+            .to_public_key_pem(Default::default())
+            .map_err(|_| IoError::new(IoErrorKind::InvalidData, "Failed to serialize PublicKey"))?;
+        writer.write_all(s.as_bytes())?;
+        Ok(())
     }
 }

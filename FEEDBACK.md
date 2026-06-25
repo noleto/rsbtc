@@ -70,3 +70,24 @@ impl fmt::Display for Hash {
 }
 ```
 The `0` flag means pad with zeros, `64` is the width (32 bytes × 2 hex chars)
+
+### Page 300
+- `async fn fetch_template(&self) -> Result<()>` holds the lock across `receive_async` and if the reply **never arrives** (peer hangs, drops the connection silently, sends nothing), `receive_async` is stuck on `read_exact`, and because the guard is still alive, **every other task that needs the stream is blocked forever too**.
+A safer logic could be:
+```rust
+let template = {
+    let mut stream_lock = self.stream.lock().await; // one lock for the whole round-tri
+    message.send_async(&mut *stream_lock).await?;
+    let received = timeout(
+        Duration::from_secs(10),
+        Message::receive_async(&mut *stream_lock),
+    )
+    .await
+    .map_err(|_| anyhow!("timed out waiting for template response"))??;
+
+    match received {
+        Message::Template(t) => t,
+        _ => return Err(anyhow!("unexpected message when fetching template")),
+    }
+}; // stream_lock dropped here, at end of block — before we touch other state
+```

@@ -4,7 +4,7 @@ use super::{Transaction, TransactionOutput};
 use crate::U256;
 use crate::error::{BtcError, Result};
 use crate::sha256::{BlockHash, Hash, UtxoHash};
-use crate::utils::MerkleRoot;
+use crate::utils::{AutoSaveable, MerkleRoot};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
@@ -27,6 +27,8 @@ pub struct BlockHeader {
     /// Target
     pub target: U256,
 }
+
+impl AutoSaveable for Block {}
 
 impl Block {
     pub fn new(header: BlockHeader, transactions: Vec<Transaction>) -> Self {

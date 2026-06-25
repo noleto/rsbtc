@@ -4,6 +4,8 @@ use std::{
     path::Path,
 };
 
+pub trait AutoSaveable {}
+
 pub trait Saveable
 where
     Self: Sized,
@@ -24,7 +26,7 @@ where
 
 impl<T> Saveable for T
 where
-    T: Sized + serde::Serialize + serde::de::DeserializeOwned,
+    T: Sized + serde::Serialize + serde::de::DeserializeOwned + AutoSaveable,
 {
     fn load<I: Read>(reader: I) -> IoResult<Self> {
         ciborium::de::from_reader(reader).map_err(|_| {
@@ -41,6 +43,7 @@ where
                 IoErrorKind::InvalidData,
                 format!("Failed to serialize {}", std::any::type_name::<Self>()),
             )
-        })
+        })?;
+        Ok(())
     }
 }

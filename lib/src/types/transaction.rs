@@ -3,6 +3,7 @@ use std::collections::{HashMap, HashSet};
 use crate::crypto::{PublicKey, Signature};
 use crate::error::{BtcError, Result};
 use crate::sha256::{Hash, Txid, UtxoHash};
+use crate::utils::AutoSaveable;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -119,3 +120,5 @@ impl TransactionOutput {
         UtxoHash(Hash::hash(self))
     }
 }
+
+impl AutoSaveable for Transaction {}

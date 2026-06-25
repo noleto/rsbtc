@@ -16,3 +16,4 @@ sha256 = "1.6.0"
 thiserror = "1.0.59"
 uint = "0.10.0"
 uuid = { version = "1.23.2", features = ["v4", "serde"] }
+tokio = { version = "1.52.3", features = ["full"] }
