@@ -31,3 +31,6 @@ pub mod types;
 pub mod utils;
 // maximum mempool transaction age in seconds
 pub const MAX_MEMPOOL_TRANSACTION_AGE: u64 = 600;
+// maximum amount of transactions allowed in a block
+pub const BLOCK_TRANSACTION_CAP: usize = 20;
+pub const MAX_PEERS_TO_CONNECT: usize = 25;

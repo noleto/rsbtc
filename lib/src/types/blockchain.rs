@@ -1,10 +1,12 @@
 use std::collections::HashMap;
 
 use super::{Block, Transaction, TransactionOutput};
-use crate::U256;
+use crate::crypto::PublicKey;
 use crate::error::{BtcError, Result};
-use crate::sha256::{Hash, Txid, UtxoHash};
-use crate::utils::MerkleRoot;
+use crate::sha256::{BlockHash, Hash, Txid, UtxoHash};
+use crate::types::BlockHeader;
+use crate::utils::{AutoSaveable, MerkleRoot};
+use crate::{BLOCK_TRANSACTION_CAP, U256};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
@@ -67,7 +69,10 @@ impl Blockchain {
         } else {
             // if this is not the first block, check if the
             // block's previous block is the hash of the last block
-            let last_block = self.blocks.last().expect("blockchain should not be empty");
+            let last_block = self
+                .blocks()
+                .last()
+                .expect("blockchain should be not empty!");
             if block.header.prev_block_hash != last_block.hash() {
                 return Err(BtcError::InvalidBlock);
             }
@@ -97,9 +102,12 @@ impl Blockchain {
             self.mempool.remove(&tx.hash());
         }
 
+        Self::apply_block(&mut self.utxos, &block);
+
         self.blocks.push(block);
 
         self.try_adjust_target();
+
         Ok(())
     }
 
@@ -150,15 +158,25 @@ impl Blockchain {
     /// (spent) and all outputs are inserted (unspent). This is used to reconstruct
     /// the UTXO set after deserialization, since `utxos` is not persisted.
     pub fn rebuild_utxos(&mut self) {
-        for block in &self.blocks {
-            for tx in &block.transactions {
-                for input in &tx.inputs {
-                    self.utxos.remove(&input.prev_transaction_output_hash);
-                }
-                for output in &tx.outputs {
-                    self.utxos.insert(output.hash(), output.clone());
-                }
-            }
+        for block in self.blocks.iter() {
+            Self::apply_block(&mut self.utxos, block);
+        }
+    }
+
+    /// Helper function to update the UTXOs when a new block is added
+    fn apply_block(utxos: &mut HashMap<UtxoHash, TransactionOutput>, block: &Block) {
+        for tx in &block.transactions {
+            Self::apply_transaction(utxos, tx);
+        }
+    }
+
+    /// Helper function to update the UTXOs when a new transaction is accepted
+    fn apply_transaction(utxos: &mut HashMap<UtxoHash, TransactionOutput>, tx: &Transaction) {
+        for input in &tx.inputs {
+            utxos.remove(&input.prev_transaction_output_hash);
+        }
+        for output in &tx.outputs {
+            utxos.insert(output.hash(), output.clone());
         }
     }
 
@@ -181,6 +199,13 @@ impl Blockchain {
 
     pub fn mempool(&self) -> &HashMap<Txid, MempoolEntry> {
         &self.mempool
+    }
+
+    pub fn scan_utxos(&self, key: PublicKey) -> impl Iterator<Item = (&TransactionOutput, bool)> {
+        self.utxos()
+            .iter()
+            .filter(move |(_, txout)| txout.pubkey == key)
+            .map(|(hash, txout)| (txout, self.pending_spends.contains_key(hash)))
     }
 
     /// Validates a transaction and admits it into the mempool.
@@ -265,7 +290,7 @@ impl Blockchain {
     /// Returns mempool transactions sorted by miner fee in descending order.
     ///
     /// Miners should pick from the front of the iterator to maximise revenue.
-    pub fn sort_mempool(&mut self) -> impl Iterator<Item = Transaction> {
+    pub fn sorted_mempool(&self) -> impl Iterator<Item = Transaction> {
         let mut pending_txs: Vec<(&Transaction, u64)> = self
             .mempool
             .values()
@@ -300,6 +325,37 @@ impl Blockchain {
             }
         }
     }
+
+    pub fn chain_tip(&self) -> Option<BlockHash> {
+        self.blocks().last().map(|b| b.hash())
+    }
+
+    pub fn block_template(&self, pubkey: PublicKey) -> Result<Block> {
+        let mut txs = vec![];
+        txs.push(Transaction::coinbase(pubkey));
+        //TODO this is a simplification, block should be limited by vsat weight
+        txs.extend(self.sorted_mempool().take(BLOCK_TRANSACTION_CAP));
+        let mut block = Block::new(
+            BlockHeader::new(
+                Utc::now(),
+                0,
+                self.chain_tip().unwrap_or_else(|| BlockHash::ZERO),
+                MerkleRoot::ZERO,
+                self.target(),
+            ),
+            txs,
+        );
+
+        let miner_fees = block.calculate_miner_fees(self.utxos())?;
+        let reward = Block::block_reward(self.block_height());
+
+        // update coinbase tx with reward
+        block.transactions[0].outputs[0].value = reward + miner_fees;
+        //set the actual merkle root
+        block.header.merkle_root = MerkleRoot::calculate(&block.transactions);
+
+        Ok(block)
+    }
 }
 
 impl MempoolEntry {
@@ -311,3 +367,5 @@ impl MempoolEntry {
         }
     }
 }
+
+impl AutoSaveable for Blockchain {}

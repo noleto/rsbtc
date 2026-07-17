@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 pub struct MerkleRoot(Hash);
 
 impl MerkleRoot {
+    pub const ZERO: MerkleRoot = MerkleRoot(Hash::ZERO);
     // calculate the merkle root of a block's transactions
     pub fn calculate(transactions: &[Transaction]) -> MerkleRoot {
         let mut layer: Vec<Hash> = transactions.iter().map(|tx| Hash::hash(tx)).collect();

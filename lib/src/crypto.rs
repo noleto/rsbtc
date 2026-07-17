@@ -14,7 +14,7 @@ use std::io::{Error as IoError, ErrorKind as IoErrorKind, Read, Result as IoResu
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Signature(ECDSASignature<Secp256k1>);
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, PartialEq)]
 pub struct PublicKey(VerifyingKey<Secp256k1>);
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

@@ -95,8 +95,7 @@ impl Block {
         }
 
         let miner_fees = self.calculate_miner_fees(utxos)?;
-        let block_reward = crate::INITIAL_REWARD * 10u64.pow(8)
-            / 2u64.pow((predicted_block_height / crate::HALVING_INTERVAL) as u32);
+        let block_reward = Self::block_reward(predicted_block_height);
 
         let total_coinbase_value: u64 = coinbase_tx.outputs.iter().map(|o| o.value).sum();
         if total_coinbase_value != block_reward + miner_fees {
@@ -119,6 +118,12 @@ impl Block {
                     Ok((ins + tx_in, outs + tx_out))
                 })?;
         Ok(input_value - output_value)
+    }
+
+    pub fn block_reward(block_height: u64) -> u64 {
+        let block_reward = crate::INITIAL_REWARD * 10u64.pow(8)
+            / 2u64.pow((block_height / crate::HALVING_INTERVAL) as u32);
+        return block_reward;
     }
 }
 

@@ -96,6 +96,17 @@ impl Transaction {
         }
         Ok((input_value, output_value))
     }
+
+    pub fn coinbase(pubkey: PublicKey) -> Transaction {
+        Transaction {
+            inputs: vec![],
+            outputs: vec![TransactionOutput {
+                pubkey,
+                unique_id: Uuid::new_v4(),
+                value: 0,
+            }],
+        }
+    }
 }
 
 impl TransactionInput {

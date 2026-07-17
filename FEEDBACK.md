@@ -91,3 +91,7 @@ let template = {
     }
 }; // stream_lock dropped here, at end of block — before we touch other state
 ```
+
+### Page 319
+- Snippet code shows that function `pub async fn find_longest_chain_node(
+) -> Result<(String, u32)>` should be implemented in `main.rs` while the correct file is `util.rs`

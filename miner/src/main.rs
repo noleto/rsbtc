@@ -5,14 +5,13 @@ use std::time::Duration;
 
 use anyhow::{Result, anyhow};
 use btclib::crypto::PublicKey;
-use btclib::network::Message;
+use btclib::network::{Connection, DEFAULT_REQUEST_TIMEOUT, Message};
 use btclib::types::Block;
 use btclib::utils::Saveable;
 use clap::Parser;
 use std::sync::atomic::Ordering;
-use tokio::net::TcpStream;
 use tokio::sync::Mutex;
-use tokio::time::{interval, timeout};
+use tokio::time::interval;
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -25,8 +24,7 @@ struct Cli {
 
 struct Miner {
     public_key: PublicKey,
-    address: String,
-    stream: Mutex<TcpStream>,
+    conn: Mutex<Connection>,
     current_template: Arc<std::sync::Mutex<Option<Block>>>,
     mining: Arc<AtomicBool>,
     mined_block_sender: flume::Sender<Block>,
@@ -35,13 +33,11 @@ struct Miner {
 
 impl Miner {
     async fn new(address: String, public_key: PublicKey) -> Result<Self> {
-        let stream = TcpStream::connect(&address).await?;
         let (mined_block_sender, mined_block_receiver) = flume::unbounded();
 
         Ok(Self {
             public_key,
-            address,
-            stream: Mutex::new(stream),
+            conn: Mutex::new(Connection::connect(address).await?),
             current_template: Arc::new(std::sync::Mutex::new(None)),
             mining: Arc::new(AtomicBool::new(false)),
             mined_block_sender,
@@ -60,7 +56,9 @@ impl Miner {
                     }
                 }
                 Ok(mined_block) = receiver.recv_async() => {
-                    self.submit_block(mined_block).await?;
+                    if let Err(e) = self.submit_block(mined_block).await {
+                        eprintln!("block submit failed: {e}")
+                    }
 
                 }
             }
@@ -96,41 +94,19 @@ impl Miner {
         Ok(())
     }
 
-    /// Sends `message` and returns the peer's reply, bounded by a 10s timeout.
-    /// On timeout the (now desynced) stream is replaced with a fresh connection.
-    async fn request(&self, sending: Message) -> Result<Message> {
-        let mut stream_lock = self.stream.lock().await; // one lock for the whole round-trip
-        sending.send_async(&mut *stream_lock).await?;
-
-        // Wait to receive message for the next 10s otherwise fails (and release the stream)
-        // Note that stream may be corrupted if it's canceled in mid-reading
-        // So we just reconnect
-        let received = timeout(
-            Duration::from_secs(10),
-            Message::receive_async(&mut *stream_lock),
-        )
-        .await;
-
-        match received {
-            Err(_elapsed) => {
-                // stream is now desynced — replace it while we still hold the lock
-                *stream_lock = TcpStream::connect(&self.address).await?;
-                return Err(anyhow!("timed out waiting for template; reconnected"));
-            }
-            Ok(Ok(msg)) => Ok(msg),
-            Ok(Err(e)) => return Err(e.into()),
-        }
-    }
-
     async fn fetch_template(&self) -> Result<()> {
         println!("Fetching new template");
         let message = Message::FetchTemplate(self.public_key.clone());
 
-        // fetch_template
-        let template = match self.request(message).await? {
-            Message::Template(t) => t,
-            _ => return Err(anyhow!("unexpected message when fetching template")),
-        };
+        let template = self
+            .conn
+            .lock()
+            .await
+            .request_expect(&message, DEFAULT_REQUEST_TIMEOUT, |m| match m {
+                Message::Template(t) => Some(t),
+                _ => None,
+            })
+            .await?;
 
         println!(
             "Received new template with target: {}",
@@ -146,12 +122,15 @@ impl Miner {
         match maybe_template {
             Some(template) => {
                 let message = Message::ValidateTemplate(template);
-
-                // validate_template
-                let valid = match self.request(message).await? {
-                    Message::TemplateValidity(valid) => valid,
-                    _ => return Err(anyhow!("unexpected message when validating template")),
-                };
+                let valid = self
+                    .conn
+                    .lock()
+                    .await
+                    .request_expect(&message, DEFAULT_REQUEST_TIMEOUT, |m| match m {
+                        Message::TemplateValidity(b) => Some(b),
+                        _ => None,
+                    })
+                    .await?;
 
                 if !valid {
                     println!("Current template is no longer valid");
@@ -167,8 +146,7 @@ impl Miner {
     async fn submit_block(&self, block: Block) -> Result<()> {
         println!("Submitting mined block");
         let message = Message::SubmitTemplate(block);
-        let mut stream_lock = self.stream.lock().await;
-        message.send_async(&mut *stream_lock).await?;
+        self.conn.lock().await.send(&message).await?;
         self.mining.store(false, Ordering::Relaxed);
         Ok(())
     }
