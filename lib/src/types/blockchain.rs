@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use super::{Block, Transaction, TransactionOutput};
 use crate::crypto::PublicKey;
 use crate::error::{BtcError, Result};
-use crate::sha256::{BlockHash, Hash, Txid, UtxoHash};
+use crate::sha256::{BlockHash, Hash, TxOutputHash, Txid};
 use crate::types::BlockHeader;
 use crate::utils::{AutoSaveable, MerkleRoot};
 use crate::{BLOCK_TRANSACTION_CAP, U256};
@@ -15,13 +15,13 @@ pub struct Blockchain {
     blocks: Vec<Block>,
     target: U256,
     // confirmed, spendable outputs
-    utxos: HashMap<UtxoHash, TransactionOutput>,
+    utxos: HashMap<TxOutputHash, TransactionOutput>,
     #[serde(default, skip_serializing, skip_deserializing)]
     mempool: HashMap<Txid, MempoolEntry>,
     #[serde(default, skip_serializing, skip_deserializing)]
     // tracks UTXOs primed for spending by a transaction in mempool
     // utxo hash → mempool tx spending it
-    pending_spends: HashMap<UtxoHash, Txid>,
+    pending_spends: HashMap<TxOutputHash, Txid>,
 }
 
 #[derive(Clone, Debug)]
@@ -164,14 +164,14 @@ impl Blockchain {
     }
 
     /// Helper function to update the UTXOs when a new block is added
-    fn apply_block(utxos: &mut HashMap<UtxoHash, TransactionOutput>, block: &Block) {
+    fn apply_block(utxos: &mut HashMap<TxOutputHash, TransactionOutput>, block: &Block) {
         for tx in &block.transactions {
             Self::apply_transaction(utxos, tx);
         }
     }
 
     /// Helper function to update the UTXOs when a new transaction is accepted
-    fn apply_transaction(utxos: &mut HashMap<UtxoHash, TransactionOutput>, tx: &Transaction) {
+    fn apply_transaction(utxos: &mut HashMap<TxOutputHash, TransactionOutput>, tx: &Transaction) {
         for input in &tx.inputs {
             utxos.remove(&input.prev_transaction_output_hash);
         }
@@ -193,7 +193,7 @@ impl Blockchain {
         self.target
     }
 
-    pub fn utxos(&self) -> &HashMap<UtxoHash, TransactionOutput> {
+    pub fn utxos(&self) -> &HashMap<TxOutputHash, TransactionOutput> {
         &self.utxos
     }
 

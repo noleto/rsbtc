@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 
 use crate::crypto::{PublicKey, Signature};
 use crate::error::{BtcError, Result};
-use crate::sha256::{Hash, Txid, UtxoHash};
+use crate::sha256::{Hash, TxOutputHash, Txid};
 use crate::utils::AutoSaveable;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -15,7 +15,7 @@ pub struct Transaction {
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct TransactionInput {
-    pub prev_transaction_output_hash: UtxoHash,
+    pub prev_transaction_output_hash: TxOutputHash,
     pub signature: Signature,
 }
 
@@ -49,7 +49,7 @@ impl Transaction {
     /// a UTXO that does not exist in `utxos`.
     pub fn resolve_inputs<'a>(
         &self,
-        utxos: &'a HashMap<UtxoHash, TransactionOutput>,
+        utxos: &'a HashMap<TxOutputHash, TransactionOutput>,
     ) -> Result<Vec<(&TransactionInput, &'a TransactionOutput)>> {
         //Track already "spent" inputs
         let mut known_inputs = HashSet::new();
@@ -110,7 +110,7 @@ impl Transaction {
 }
 
 impl TransactionInput {
-    pub fn new(prev_transaction_output_hash: UtxoHash, signature: Signature) -> Self {
+    pub fn new(prev_transaction_output_hash: TxOutputHash, signature: Signature) -> Self {
         Self {
             prev_transaction_output_hash,
             signature,
@@ -127,8 +127,8 @@ impl TransactionOutput {
         }
     }
 
-    pub fn hash(&self) -> UtxoHash {
-        UtxoHash(Hash::hash(self))
+    pub fn hash(&self) -> TxOutputHash {
+        TxOutputHash(Hash::hash(self))
     }
 }
 

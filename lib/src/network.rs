@@ -18,6 +18,7 @@ pub enum Message {
     /// Fetch all UTXOs belonging to a public key
     FetchUTXOs(PublicKey),
     /// UTXOs belonging to a public key. Bool determines if is primed by a pending tx
+    // TODO not sure that passing primed field (bool) makes sense, this should stay as an internal state of the blockchain
     UTXOs(Vec<(TransactionOutput, bool)>),
     /// Send a transaction to the network, don't expect any reponse when sending this message
     SubmitTransaction(Transaction),
@@ -81,6 +82,12 @@ pub enum NetworkError {
     UnexpectedMessage { addr: String },
     #[error("message payload of {0} bytes exceeds maximum allowed ({MAX_MESSAGE_SIZE})")]
     MessageTooLarge(usize),
+    #[error("failed to connect to {addr}: {source}")]
+    Connect {
+        addr: String,
+        #[source]
+        source: IoError,
+    },
 }
 
 impl Message {
@@ -146,7 +153,11 @@ impl Connection {
         let addr = addr.into();
         let stream = timeout(CONNECT_TIMEOUT, TcpStream::connect(&addr))
             .await
-            .map_err(|_| NetworkError::Timeout(CONNECT_TIMEOUT))??;
+            .map_err(|_| NetworkError::Timeout(CONNECT_TIMEOUT))?
+            .map_err(|e| NetworkError::Connect {
+                addr: addr.clone(),
+                source: e,
+            })?;
         Ok(Self { addr, stream })
     }
 

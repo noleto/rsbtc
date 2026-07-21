@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use super::{Transaction, TransactionOutput};
 use crate::U256;
 use crate::error::{BtcError, Result};
-use crate::sha256::{BlockHash, Hash, UtxoHash};
+use crate::sha256::{BlockHash, Hash, TxOutputHash};
 use crate::utils::{AutoSaveable, MerkleRoot};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -46,7 +46,7 @@ impl Block {
     pub fn verify_transactions(
         &self,
         predicted_block_height: u64,
-        utxos: &HashMap<UtxoHash, TransactionOutput>,
+        utxos: &HashMap<TxOutputHash, TransactionOutput>,
     ) -> Result<()> {
         // reject completely empty blocks
         if self.transactions.is_empty() {
@@ -76,7 +76,7 @@ impl Block {
     pub fn verify_coinbase_transaction(
         &self,
         predicted_block_height: u64,
-        utxos: &HashMap<UtxoHash, TransactionOutput>,
+        utxos: &HashMap<TxOutputHash, TransactionOutput>,
     ) -> Result<()> {
         // coinbase tx is the first transaction in the block
         let coinbase_tx = &self
@@ -106,7 +106,7 @@ impl Block {
 
     pub fn calculate_miner_fees(
         &self,
-        utxos: &HashMap<UtxoHash, TransactionOutput>,
+        utxos: &HashMap<TxOutputHash, TransactionOutput>,
     ) -> Result<u64> {
         let (input_value, output_value) =
             self.transactions

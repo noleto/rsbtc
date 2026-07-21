@@ -95,3 +95,12 @@ let template = {
 ### Page 319
 - Snippet code shows that function `pub async fn find_longest_chain_node(
 ) -> Result<(String, u32)>` should be implemented in `main.rs` while the correct file is `util.rs`
+
+### Page 345
+- The helper functions for the CLI in `wallet/src/main.rs` start being implemented using references to methods on the `Core` struct. However, `Core` has not yet been defined at that point, so the compiler raises errors. This also degrades the development experience because auto-completion and code navigation do not work properly.
+
+The `Core` struct is only introduced much later (around page 354). It would be better to provide a minimal stub implementation of `Core` before this section, even if the full implementation is introduced later. This would allow the examples to compile throughout the book and provide a much smoother reading and development experience.
+
+### Page 358
+
+- `pub struct PublicKey(VerifyingKey<Secp256k1>)` should derive `#[derive(..., PartialEq, Eq, PartialOrd, Ord)]` otherwise SkipMap `insert` refuses to compile.

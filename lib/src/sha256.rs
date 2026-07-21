@@ -7,7 +7,7 @@ use std::fmt::{self, Debug};
 pub struct Hash(U256);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct UtxoHash(pub Hash);
+pub struct TxOutputHash(pub Hash);
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct Txid(pub Hash);

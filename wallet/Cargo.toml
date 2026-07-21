@@ -4,3 +4,19 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+btclib = { version = "0.1.0", path = "../lib" }
+anyhow = "1.0.102"
+clap = { version = "4.6.1", features = ["derive"] }
+crossbeam-skiplist = "0.1.3"
+cursive = "0.20.0"
+futures = "0.3.30"
+kanal = "0.1.0-pre8"
+serde = { version = "1.0.204", features = ["derive"] }
+text-to-ascii-art = "0.1.9"
+toml = "0.8.14"
+tracing = "0.1.40"
+tracing-appender = "0.2.3"
+tracing-subscriber = { version = "0.3.18", features = ["env-filter", "fmt"] }
+uuid = { version = "1.23.2", features = ["v4", "serde"] }
+tokio = { version = "1.52.3", features = ["full"] }
+dirs = "6.0.0"
