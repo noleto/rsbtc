@@ -14,3 +14,5 @@ Cargo.lock
 *.pdb
 
 *.cbor
+!alice.priv.cbor
+!bob.priv.cbor
